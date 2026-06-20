@@ -6,6 +6,36 @@
 
 ---
 
+## How to use it in Claude
+
+> **This is not a website you click on — it's an MCP App connector.** You don't open it in a browser; you add it to Claude as a custom connector and then talk to it in chat.
+
+**Connector endpoint:**
+
+```
+https://ares-explorer-mcp.vercel.app/api/mcp
+```
+
+Mind the **`/api/mcp`** path — that exact path *is* the MCP endpoint (Streamable HTTP). Opening the URL in a browser shows nothing useful; it's an MCP server, not a web page. The bare domain or any other path won't work as a connector.
+
+**Connect it (one-time):**
+
+1. Open **Claude on web or desktop** → **Settings → Connectors**.
+2. Click **Add custom connector**.
+3. Paste `https://ares-explorer-mcp.vercel.app/api/mcp` and confirm.
+
+> **Requires a paid Claude plan** (Pro / Max / Team). Custom connectors are not available on the free plan.
+
+> **Harmless sign-in warning.** While adding the connector, Claude may show an OAuth / sign-in message such as *"Couldn't register with sign-in service."* It's safe to ignore — just dismiss it. The server is public and needs no login, and the tools load regardless.
+
+**Try it.** Once connected, ask in chat:
+
+- *„Ukaž graf vazeb firmy s IČO 24130222."* (Show the relationship graph for the company with IČO 24130222.) — then **click company nodes** and the graph grows live.
+- *„Vykresli vlastnickou strukturu firmy s IČO 27604977."* (Draw the ownership structure of the company with IČO 27604977.)
+- *„Najdi firmu Seznam.cz a ukaž její vazby."* (Find the company Seznam.cz and show its ties.)
+
+---
+
 ## What it is
 
 **ARES Explorer** is an MCP App that takes the open data of the Czech [ARES](https://ares.gov.cz) register and builds an **interactive graph of a company's ties** — its statutory body, members/owners, and connected companies — rendering it directly inside Claude. It isn't just a static picture: **company nodes are clickable** and the graph grows live as the app calls back to the server (the "bidirectional loop" of MCP Apps).
@@ -110,23 +140,7 @@ npm test           # unit tests for the ties parser (no network)
 
 > Both `npm run dev` and `npm run build` first bundle the UI with Vite into `dist/ares-explorer.html`, then `scripts/inline-html.mjs` embeds it as a string into `app/api/mcp/ares-explorer-html.ts`. The serverless function therefore has no runtime filesystem dependency — the HTML is part of the bundle.
 
-### Trying it in Claude
-
-An MCP App needs a host that supports MCP Apps (Claude on web / desktop), which means a publicly reachable URL — so deploy to Vercel first (a preview deployment is enough) and add the function URL as a custom connector:
-
-1. Copy your deployment URL, e.g. `https://<project>.vercel.app`.
-2. In Claude → **Settings → Connectors → Add custom connector** → paste `https://<project>.vercel.app/api/mcp` (note the **`/api/mcp`** path, not just `/mcp`).
-3. Ask, for example: *„Ukaž graf vazeb firmy s IČO 24130222."* (Show the relationship graph for the company with IČO 24130222.) or *„Najdi v ARES firmu Alza a vykresli její vazby."* (Find the company Alza in ARES and draw its ties.)
-
-> Custom connectors require a paid Claude plan (Pro / Max / Team).
-
-Alternatively, you can debug the app locally with [`basic-host`](https://github.com/modelcontextprotocol/ext-apps/tree/main/examples/basic-host) from the ext-apps repo.
-
-### Example prompts
-
-- *„Vykresli vlastnickou strukturu firmy s IČO 27604977."* (Draw the ownership structure of the company with IČO 27604977.)
-- *„Najdi firmu Seznam.cz a ukaž její vazby."* (Find the company Seznam.cz and show its ties.)
-- *„Otevři graf pro IČO 24130222 a rozbal její mateřskou firmu."* (Open the graph for IČO 24130222 and expand its parent company.) *(in the app, just click the node)*
+To wire a local or self-hosted instance into Claude, follow [How to use it in Claude](#how-to-use-it-in-claude) but paste your own `…/api/mcp` URL. For host-free local debugging, you can also drive the app with [`basic-host`](https://github.com/modelcontextprotocol/ext-apps/tree/main/examples/basic-host) from the ext-apps repo.
 
 ---
 
@@ -150,7 +164,7 @@ What's wired up for deployment:
 - **`.npmrc`** with `legacy-peer-deps=true` — `mcp-handler@1.1.0` pins its `@modelcontextprotocol/sdk` peer to exactly `1.26.0`, whereas `ext-apps` requires `^1.29.0`. The APIs in use (`McpServer` + Streamable HTTP transport) are stable across those versions, so we stay on `1.29.x`. Vercel reads this file at install time too, so the same resolution applies in CI.
 - **Inlined HTML** — the app's UI is embedded straight into the function at build time (see above), so the serverless environment never needs to read `dist/` from disk.
 
-After deploying, add `https://<project>.vercel.app/api/mcp` as a custom connector in Claude (see "Trying it in Claude").
+After deploying, add `https://<project>.vercel.app/api/mcp` as a custom connector in Claude (see [How to use it in Claude](#how-to-use-it-in-claude)).
 
 ---
 
