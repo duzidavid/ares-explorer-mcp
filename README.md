@@ -112,7 +112,7 @@ The first version ran as a long-lived Express process exposing the MCP server ov
 - **TypeScript** (server and UI), **strict** mode
 - [`@modelcontextprotocol/ext-apps`](https://github.com/modelcontextprotocol/ext-apps) — MCP Apps SDK (server helpers + client `App` class)
 - [`@modelcontextprotocol/sdk`](https://github.com/modelcontextprotocol/typescript-sdk) — MCP server + Streamable HTTP transport
-- [`mcp-handler`](https://github.com/vercel/mcp-handler) + **Next.js** App Router — MCP over a single serverless function (`app/api/mcp/route.ts`), no long-lived process
+- [`mcp-handler`](https://github.com/vercel/mcp-handler) + **Next.js 15** App Router — MCP over a single serverless function (`app/api/mcp/route.ts`), no long-lived process. Next.js is used purely as the routing + build wrapper for that one handler — no pages, no `next/*` imports in code. `react` / `react-dom` are pulled in only as Next's required peers, not used by the app (the UI is plain D3 in inlined HTML)
 - **zod** — tool input validation
 - **D3** (force-directed graph, zoom/pan, drag)
 - **Vite** + `vite-plugin-singlefile` — the UI is bundled into one HTML file that the build inlines directly into the serverless function (no external origins → simple CSP)
@@ -165,6 +165,17 @@ What's wired up for deployment:
 - **Inlined HTML** — the app's UI is embedded straight into the function at build time (see above), so the serverless environment never needs to read `dist/` from disk.
 
 After deploying, add `https://<project>.vercel.app/api/mcp` as a custom connector in Claude (see [How to use it in Claude](#how-to-use-it-in-claude)).
+
+### Who can deploy, and how (contribution process)
+
+Production deploys are **gated** — they don't happen on a whim, and not everyone can trigger one.
+
+- **`main` is protected.** No direct pushes for contributors. Every change lands through a pull request that must pass CI (`.github/workflows/ci.yml` → typecheck + tests + build) and get a maintainer's approving review before it can merge.
+- **Production = a merge to `main`.** Vercel deploys `main` to production. Since only reviewed, CI-green PRs (or the maintainer's own pushes) reach `main`, nothing ships to production without the maintainer's sign-off.
+- **Fork previews are not automatic.** Vercel's Git fork protection is on, so a PR from a fork won't build a preview until a maintainer authorizes it — outside code never builds in this project unprompted.
+- **CLI production deploys (`vercel --prod`) are restricted** to the maintainer via Vercel team membership. This is the one path that bypasses GitHub, so team access is kept tight on purpose.
+
+So a new contributor's flow is: **fork → branch → open a PR → CI runs → maintainer reviews and approves → maintainer merges → production deploys.** No task gets to production any other way.
 
 ---
 
