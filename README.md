@@ -52,13 +52,13 @@ Type something like *„Ukaž mi vazby firmy s IČO 24130222."* (Show me the rel
 
 ## What it looks like
 
-```
-        ┌─ Ing. Jan Novák  (jednatel)
-        │
- [Testovací s.r.o.] ──── společník ──── [Mateřská Holding a.s.]  ⊕  ← click to expand
-        │
-        └─ … more ties
-```
+![ARES Explorer — the force-directed graph with a company's inspector panel open](docs/screenshot-graph.png)
+
+*The expanded graph (55 nodes · 59 ties). The inspector lists the statutory-body members (člen statutárního orgánu) of the selected company, Corporate Consulting a.s., each with a deep link out to ARES.*
+
+![ARES Explorer — a person node selected, showing date of birth and ties](docs/screenshot-person.png)
+
+*Click a person node for its detail: René Sommer, born 1966, sits on the supervisory board (člen dozorčí rady) of Kofola ČeskoSlovensko a.s.*
 
 - **Companies** = amber rounded square, **people** = teal circle (distinguished by both shape and color).
 - A node with **`+`** can be expanded. The side inspector shows detail, ties, and a link out to ARES.
