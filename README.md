@@ -112,7 +112,7 @@ The first version ran as a long-lived Express process exposing the MCP server ov
 - **TypeScript** (server and UI), **strict** mode
 - [`@modelcontextprotocol/ext-apps`](https://github.com/modelcontextprotocol/ext-apps) — MCP Apps SDK (server helpers + client `App` class)
 - [`@modelcontextprotocol/sdk`](https://github.com/modelcontextprotocol/typescript-sdk) — MCP server + Streamable HTTP transport
-- [`mcp-handler`](https://github.com/vercel/mcp-handler) + **Next.js** App Router — MCP over a single serverless function (`app/api/mcp/route.ts`), no long-lived process
+- [`mcp-handler`](https://github.com/vercel/mcp-handler) + **Next.js 15** App Router — MCP over a single serverless function (`app/api/mcp/route.ts`), no long-lived process. Next.js is used purely as the routing + build wrapper for that one handler — no pages, no `next/*` imports in code. `react` / `react-dom` are pulled in only as Next's required peers, not used by the app (the UI is plain D3 in inlined HTML)
 - **zod** — tool input validation
 - **D3** (force-directed graph, zoom/pan, drag)
 - **Vite** + `vite-plugin-singlefile` — the UI is bundled into one HTML file that the build inlines directly into the serverless function (no external origins → simple CSP)
