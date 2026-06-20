@@ -1,0 +1,35 @@
+name: CI
+
+# Gate for the protected `main` branch. Every PR must pass this before it can be
+# merged; pushes to main re-run it as a sanity check. No secrets or network are
+# needed — typecheck and the parser tests run offline, and the build inlines the
+# UI HTML into the function without any env vars.
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: build-and-test
+    runs-on: ubuntu-latest
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
