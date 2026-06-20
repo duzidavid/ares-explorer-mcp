@@ -20,7 +20,7 @@ Mind the **`/api/mcp`** path — that exact path *is* the MCP endpoint (Streamab
 
 **Connect it (one-time):**
 
-1. Open **Claude on web or desktop** → **Settings → Connectors**.
+1. In **Claude on web or desktop**, go to **Connectors** (now under the **Customize** section — it used to live under **Settings**).
 2. Click **Add custom connector**.
 3. Paste `https://ares-explorer-mcp.vercel.app/api/mcp` and confirm.
 
