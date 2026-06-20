@@ -119,7 +119,7 @@ The first version ran as a long-lived Express process exposing the MCP server ov
 
 ---
 
-## Running locally
+## Local development
 
 You need **Node.js 20+**.
 
@@ -128,7 +128,7 @@ npm install        # .npmrc sets legacy-peer-deps (see "Deploy to Vercel")
 npm run dev        # vite build → inline UI into the function → next dev
 ```
 
-The MCP endpoint then runs at **`http://localhost:3000/api/mcp`** (Streamable HTTP, POST).
+The MCP endpoint then runs at **`http://localhost:3000/api/mcp`** (Streamable HTTP, POST). As with production, the **`/api/mcp`** path *is* the endpoint — `http://localhost:3000` on its own serves nothing useful (this is an API-only Next.js app).
 
 Other scripts:
 
@@ -138,9 +138,43 @@ npm run typecheck  # tsc --noEmit
 npm test           # unit tests for the ties parser (no network)
 ```
 
-> Both `npm run dev` and `npm run build` first bundle the UI with Vite into `dist/ares-explorer.html`, then `scripts/inline-html.mjs` embeds it as a string into `app/api/mcp/ares-explorer-html.ts`. The serverless function therefore has no runtime filesystem dependency — the HTML is part of the bundle.
+### The inlined-HTML step
 
-To wire a local or self-hosted instance into Claude, follow [How to use it in Claude](#how-to-use-it-in-claude) but paste your own `…/api/mcp` URL. For host-free local debugging, you can also drive the app with [`basic-host`](https://github.com/modelcontextprotocol/ext-apps/tree/main/examples/basic-host) from the ext-apps repo.
+The route handler imports the UI from a **build-generated, gitignored** module — `app/api/mcp/route.ts` does `import { ARES_EXPLORER_HTML } from "./ares-explorer-html"`, and that file (`app/api/mcp/ares-explorer-html.ts`) only exists after the build emits it. Both `npm run dev` and `npm run build` regenerate it for you: they bundle the UI with Vite into `dist/ares-explorer.html`, then `scripts/inline-html.mjs` embeds it as a string into the module. The serverless function therefore has no runtime filesystem dependency — the HTML is part of the bundle.
+
+> **Always start the dev server with `npm run dev`, not a bare `next dev`.** The npm script runs `build:app` + `inline` first; running `next dev` directly on a clean checkout skips those steps and Next will fail to compile on the missing `./ares-explorer-html` import. If you ever hit that, run `npm run dev` (or just `npm run build` once) to generate the module.
+
+### Testing the server without Claude — MCP Inspector
+
+To exercise the endpoint without wiring it into Claude, point the [MCP Inspector](https://github.com/modelcontextprotocol/inspector) at your local server:
+
+```bash
+npx @modelcontextprotocol/inspector
+```
+
+Connect it to `http://localhost:3000/api/mcp` (transport: Streamable HTTP) and you can drive the protocol directly — `initialize`, `tools/list`, `resources/list` — and call the tools, getting their results back as JSON. This is the fastest way to confirm the server is up and the tools are wired correctly.
+
+> The Inspector only shows **raw JSON** — `company-graph` returns `GraphData`, not the rendered graph. The interactive D3 UI only paints inside an MCP host (Claude), so for the full visual experience use the tunnel flow below.
+
+### Testing the full UI in Claude — via a tunnel
+
+Because the graph renders only inside the MCP host's sandbox, to see the real UI you need to expose your local server over a public URL and add it to Claude as a second custom connector. A quick tunnel:
+
+```bash
+cloudflared tunnel --url http://localhost:3000
+```
+
+This prints a public `https://<random>.trycloudflare.com` URL. Add **`https://<random>.trycloudflare.com/api/mcp`** as an *additional* custom connector in Claude (same steps as [How to use it in Claude](#how-to-use-it-in-claude), just your tunnel URL) — keep the production connector too — and you can dogfood your local changes with the full clickable graph before opening a PR.
+
+> `cloudflared` is installed separately (e.g. `brew install cloudflared`); there's intentionally no npm script for it, since tunnelling is an ad-hoc debugging step, not part of the build.
+
+For host-free local debugging you can also drive the app with [`basic-host`](https://github.com/modelcontextprotocol/ext-apps/tree/main/examples/basic-host) from the ext-apps repo.
+
+### Recommended workflow
+
+1. **Iterate locally** with `npm run dev` + the MCP Inspector for fast JSON-level checks.
+2. **Verify the real UI in Claude** through the cloudflared tunnel once the behaviour looks right.
+3. **Open a PR** — only then does it go through CI and review. Production is reached strictly via merge to `main`, as described in [Who can deploy, and how](#who-can-deploy-and-how-contribution-process): PR → CI (typecheck + tests + build) → maintainer review → merge to `main` → production deploy. Nothing ships any other way.
 
 ---
 
