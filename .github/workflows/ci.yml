@@ -30,6 +30,9 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
+      # build first: it runs vite + scripts/inline-html.mjs, which generates the
+      # gitignored app/api/mcp/ares-explorer-html.ts that route.ts imports. Without
+      # it, typecheck fails with "Cannot find module './ares-explorer-html'".
+      - run: npm run build
       - run: npm run typecheck
       - run: npm test
-      - run: npm run build
