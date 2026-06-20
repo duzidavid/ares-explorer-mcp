@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="cs">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ARES Explorer — graf vazeb</title>
+    <style>
+      :root {
+        /* Palette: "ink registry" — deep slate canvas, single amber accent for
+           companies (the primary subject), teal for people. */
+        --bg: #0e1116;
+        --bg-grid: #161b22;
+        --surface: #1b222c;
+        --surface-2: #232b37;
+        --hairline: #2c3542;
+        --text: #e7ecf2;
+        --muted: #8a97a6;
+        --faint: #5b6675;
+        --company: #e8b84b;
+        --company-dim: #6b5824;
+        --person: #4fd1c5;
+        --person-dim: #235650;
+        --root: #f5f7fa;
+        --edge: #38424f;
+        --danger: #f0686b;
+        --mono: ui-monospace, "SFMono-Regular", "JetBrains Mono", "Menlo", monospace;
+        --ui: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", system-ui, sans-serif;
+      }
+
+      * { box-sizing: border-box; }
+
+      html, body {
+        margin: 0;
+        height: 100%;
+        background: var(--bg);
+        color: var(--text);
+        font-family: var(--ui);
+        -webkit-font-smoothing: antialiased;
+      }
+
+      #app {
+        position: relative;
+        height: 100vh;
+        min-height: 520px;
+        overflow: hidden;
+      }
+
+      /* faint grid backdrop — reads as "data canvas" */
+      #app::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background-image:
+          linear-gradient(var(--bg-grid) 1px, transparent 1px),
+          linear-gradient(90deg, var(--bg-grid) 1px, transparent 1px);
+        background-size: 28px 28px;
+        opacity: 0.5;
+        pointer-events: none;
+      }
+
+      /* ---- top toolbar ---- */
+      .toolbar {
+        position: absolute;
+        top: 0; left: 0; right: 0;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 12px 16px;
+        background: linear-gradient(var(--bg), rgba(14, 17, 22, 0.6) 70%, transparent);
+        z-index: 5;
+      }
+      .brand {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        font-weight: 650;
+        letter-spacing: 0.02em;
+      }
+      .brand b { color: var(--company); }
+      .brand .sub {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--faint);
+        letter-spacing: 0;
+      }
+      .spacer { flex: 1; }
+
+      .add-form { display: flex; gap: 6px; align-items: center; }
+      .add-form input {
+        width: 150px;
+        padding: 7px 10px;
+        background: var(--surface);
+        border: 1px solid var(--hairline);
+        border-radius: 7px;
+        color: var(--text);
+        font-family: var(--mono);
+        font-size: 12px;
+        outline: none;
+      }
+      .add-form input:focus { border-color: var(--company); }
+      button.btn {
+        padding: 7px 11px;
+        background: var(--surface);
+        border: 1px solid var(--hairline);
+        border-radius: 7px;
+        color: var(--text);
+        font-size: 12px;
+        cursor: pointer;
+      }
+      button.btn:hover { background: var(--surface-2); border-color: var(--faint); }
+      button.btn.primary { background: var(--company); border-color: var(--company); color: #20180a; font-weight: 600; }
+      button.btn.primary:hover { filter: brightness(1.06); }
+
+      /* ---- legend ---- */
+      .legend {
+        position: absolute;
+        left: 16px; bottom: 14px;
+        display: flex;
+        gap: 16px;
+        padding: 9px 13px;
+        background: rgba(27, 34, 44, 0.82);
+        border: 1px solid var(--hairline);
+        border-radius: 9px;
+        font-size: 12px;
+        color: var(--muted);
+        backdrop-filter: blur(6px);
+        z-index: 4;
+      }
+      .legend .key { display: flex; align-items: center; gap: 7px; }
+      .legend .swatch { width: 12px; height: 12px; }
+      .legend .swatch.company { background: var(--company); border-radius: 3px; }
+      .legend .swatch.person { background: var(--person); border-radius: 50%; }
+      .legend .meta { font-family: var(--mono); color: var(--faint); }
+
+      /* ---- inspector panel ---- */
+      .inspector {
+        position: absolute;
+        top: 60px; right: 16px;
+        width: 286px;
+        max-height: calc(100% - 90px);
+        overflow-y: auto;
+        padding: 16px;
+        background: rgba(27, 34, 44, 0.92);
+        border: 1px solid var(--hairline);
+        border-radius: 12px;
+        backdrop-filter: blur(8px);
+        transform: translateX(calc(100% + 24px));
+        transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+        z-index: 6;
+      }
+      .inspector.open { transform: translateX(0); }
+      .inspector .kind-tag {
+        display: inline-block;
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        padding: 3px 8px;
+        border-radius: 999px;
+        margin-bottom: 10px;
+      }
+      .kind-tag.company { background: var(--company-dim); color: var(--company); }
+      .kind-tag.person { background: var(--person-dim); color: var(--person); }
+      .inspector h2 { margin: 0 0 4px; font-size: 16px; line-height: 1.25; }
+      .inspector .ico { font-family: var(--mono); font-size: 12px; color: var(--muted); margin-bottom: 14px; }
+      .inspector dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; }
+      .inspector dt { color: var(--faint); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; align-self: start; padding-top: 2px; }
+      .inspector dd { margin: 0; font-size: 13px; }
+      .inspector dd.mono { font-family: var(--mono); }
+      .inspector .rel-list { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+      .inspector .rel-list li { font-size: 12px; color: var(--text); line-height: 1.35; }
+      .inspector .rel-list .role {
+        display: inline-block;
+        font-family: var(--mono);
+        font-size: 10px;
+        color: var(--company);
+        background: var(--company-dim);
+        padding: 1px 6px;
+        border-radius: 5px;
+        margin-right: 4px;
+      }
+      .inspector .actions { margin-top: 16px; display: flex; gap: 8px; flex-wrap: wrap; }
+      .inspector a.link, .inspector button.link {
+        font-size: 12px;
+        color: var(--company);
+        text-decoration: none;
+        border: 1px solid var(--company-dim);
+        border-radius: 7px;
+        padding: 6px 10px;
+        background: none;
+        cursor: pointer;
+      }
+      .inspector a.link:hover, .inspector button.link:hover { background: var(--company-dim); }
+      .inspector .close {
+        position: absolute; top: 10px; right: 12px;
+        background: none; border: none; color: var(--faint);
+        font-size: 18px; cursor: pointer; line-height: 1;
+      }
+      .inspector .close:hover { color: var(--text); }
+
+      /* ---- graph svg ---- */
+      svg#graph { position: absolute; inset: 0; width: 100%; height: 100%; cursor: grab; }
+      svg#graph:active { cursor: grabbing; }
+      .link { stroke: var(--edge); stroke-width: 1.4px; }
+      .link-label { fill: var(--faint); font-size: 10px; font-family: var(--mono); pointer-events: none; opacity: 0; transition: opacity 0.15s; }
+      .node { cursor: pointer; }
+      .node .shape { transition: stroke 0.15s, filter 0.15s; }
+      .node-label { fill: var(--text); font-size: 11px; pointer-events: none; }
+      .node-sub { fill: var(--muted); font-size: 9px; font-family: var(--mono); pointer-events: none; }
+      .node.dim { opacity: 0.28; }
+      .node.dim .node-label, .node.dim .node-sub { opacity: 0.4; }
+      .expand-badge { fill: var(--company); font-size: 13px; font-weight: 700; pointer-events: none; }
+
+      /* ---- states ---- */
+      .state {
+        position: absolute; inset: 0;
+        display: flex; flex-direction: column;
+        align-items: center; justify-content: center;
+        gap: 10px; text-align: center; padding: 24px;
+        z-index: 3;
+      }
+      .state .spinner {
+        width: 26px; height: 26px;
+        border: 3px solid var(--hairline);
+        border-top-color: var(--company);
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+      }
+      .state.error { color: var(--danger); font-size: 14px; }
+      @keyframes spin { to { transform: rotate(360deg); } }
+
+      .toast {
+        position: absolute;
+        bottom: 14px; left: 50%; transform: translateX(-50%) translateY(20px);
+        padding: 9px 15px;
+        background: var(--surface-2);
+        border: 1px solid var(--hairline);
+        border-radius: 9px;
+        font-size: 13px;
+        opacity: 0;
+        transition: opacity 0.2s, transform 0.2s;
+        z-index: 7;
+        pointer-events: none;
+      }
+      .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+      .toast.err { border-color: var(--danger); color: var(--danger); }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <div class="toolbar">
+        <div class="brand">
+          <span>ARES<b>·</b>Explorer</span>
+          <span class="sub" id="node-count">—</span>
+        </div>
+        <div class="spacer"></div>
+        <div class="add-form">
+          <input id="ico-input" inputmode="numeric" maxlength="10" placeholder="přidat IČO…" aria-label="Přidat firmu podle IČO" />
+          <button class="btn primary" id="add-btn">Přidat</button>
+        </div>
+        <button class="btn" id="reset-btn" title="Vystředit graf">Vystředit</button>
+      </div>
+
+      <svg id="graph" aria-label="Graf vazeb firem"></svg>
+
+      <div class="legend">
+        <div class="key"><span class="swatch company"></span> firma</div>
+        <div class="key"><span class="swatch person"></span> osoba</div>
+        <div class="key meta" id="generated-at"></div>
+      </div>
+
+      <aside class="inspector" id="inspector" aria-live="polite"></aside>
+
+      <div class="state" id="loading" style="display:none">
+        <div class="spinner"></div>
+        <div id="loading-text">Načítám data z ARES…</div>
+      </div>
+      <div class="state error" id="error" style="display:none"></div>
+
+      <div class="toast" id="toast"></div>
+    </div>
+
+    <script type="module" src="/src/mcp-app.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,194 @@
+# ARES Explorer 🇨🇿 — MCP App
+
+> **What is this?** An [MCP App](https://modelcontextprotocol.io/extensions/apps/overview) that turns the Czech business register (ARES) into an **interactive relationship graph**. Ask Claude about a company and a force-directed graph of its management and ownership ties renders right in the chat — then **click any company node to expand it live** and watch the network grow. Built with the MCP Apps SDK, a serverless MCP endpoint (`mcp-handler` on Vercel), and D3.
+
+![status](https://img.shields.io/badge/status-working%20preview-e8b84b) ![license](https://img.shields.io/badge/license-MIT-4fd1c5) ![mcp](https://img.shields.io/badge/MCP-App-8a97a6)
+
+---
+
+## What it is
+
+**ARES Explorer** is an MCP App that takes the open data of the Czech [ARES](https://ares.gov.cz) register and builds an **interactive graph of a company's ties** — its statutory body, members/owners, and connected companies — rendering it directly inside Claude. It isn't just a static picture: **company nodes are clickable** and the graph grows live as the app calls back to the server (the "bidirectional loop" of MCP Apps).
+
+Type something like *„Ukaž mi vazby firmy s IČO 24130222."* (Show me the relationships of the company with IČO 24130222.) and you get a canvas where you can explore the ownership and personnel structure by clicking.
+
+### Why it's interesting
+
+- **An MCP App, not just a tool.** Most MCP servers return text. Here a full UI runs in a sandbox and initiates further tool calls on its own based on what the user does. Click a node → `app.callServerTool("expand-node")` → new data is merged into the graph.
+- **Real open data.** No mocks — the server talks live to the public ARES REST API.
+- **Tolerant parser.** The VR (*veřejný rejstřík*, public register) JSON is deeply nested and varies by legal form. The parser therefore walks the record recursively and pulls out anything that _looks like_ a person (`jmeno` + `prijmeni`) or a connected company (`ico` + `obchodniJmeno`), inferring the role (jednatel, společník, …) from context. Resilient to schema changes.
+
+---
+
+## What it looks like
+
+```
+        ┌─ Ing. Jan Novák  (jednatel)
+        │
+ [Testovací s.r.o.] ──── společník ──── [Mateřská Holding a.s.]  ⊕  ← click to expand
+        │
+        └─ … more ties
+```
+
+- **Companies** = amber rounded square, **people** = teal circle (distinguished by both shape and color).
+- A node with **`+`** can be expanded. The side inspector shows detail, ties, and a link out to ARES.
+- The toolbar lets you paste any **IČO** to attach another company to the graph.
+
+---
+
+## Architecture
+
+```
+┌──────────────────────────── MCP host (Claude) ────────────────────────────┐
+│                                                                            │
+│   company-graph(ico)                       sandboxed iframe (ui://)        │
+│        │  tool result (GraphData)        ┌──────────────────────────────┐  │
+│        ▼  ───────────────────────────▶   │  D3 force graph              │  │
+│   ┌─────────────┐                         │  node click ───┐             │  │
+│   │  /api/mcp   │ ◀── expand-node(ico) ───│  ◀─────────────┘ callServerTool│
+│   │ (serverless)│ ──── GraphData ────────▶│  merge → graph grows         │  │
+│   └────┬────────┘                         └──────────────────────────────┘  │
+│        │ fetch                                                             │
+└────────┼──────────────────────────────────────────────────────────────────┘
+         ▼
+   ARES REST API  (ares.gov.cz)
+   • /ekonomicke-subjekty/{ico}      → base record
+   • /ekonomicke-subjekty-vr/{ico}   → public register (ties)
+   • /ekonomicke-subjekty/vyhledat   → search by name
+```
+
+**Server tools**
+
+| Tool | UI? | What it does |
+|------|-----|--------------|
+| `ares-search` | no | Najde firmy podle názvu, vrátí IČO. |
+| `company-graph` | **yes** | Otevře interaktivní graf vazeb (IČO nebo název). |
+| `expand-node` | no | Vrátí podgraf jedné firmy — volá appka při rozkliknutí uzlu. |
+
+> Tool titles and descriptions are intentionally kept in Czech — the app and its data are Czech, so this is how they read to both the user and the model.
+
+The **data contract** (`src/types.ts`) is shared by the server and the UI, keeping both sides in sync. The UI never talks to ARES itself — it only renders `GraphData` and asks the server to expand nodes.
+
+---
+
+## Architecture decision: from Express to serverless
+
+The first version ran as a long-lived Express process exposing the MCP server over Streamable HTTP. It was rewritten as a single Vercel serverless function via `mcp-handler`'s `createMcpHandler` (`app/api/mcp/route.ts`). Streamable HTTP is the recommended MCP transport, so a stateless request/response function maps onto it cleanly — there's no socket to keep alive, and the platform autoscales with load. Vercel's Fluid compute keeps instances warm and reuses them across invocations, avoiding the cold-start lag of sleeping free-tier processes while still scaling down when idle. The one build artifact the function depends on — the app's UI HTML — is inlined into the bundle at build time, so there's no runtime filesystem dependency in the serverless environment.
+
+---
+
+## Tech stack
+
+- **TypeScript** (server and UI), **strict** mode
+- [`@modelcontextprotocol/ext-apps`](https://github.com/modelcontextprotocol/ext-apps) — MCP Apps SDK (server helpers + client `App` class)
+- [`@modelcontextprotocol/sdk`](https://github.com/modelcontextprotocol/typescript-sdk) — MCP server + Streamable HTTP transport
+- [`mcp-handler`](https://github.com/vercel/mcp-handler) + **Next.js** App Router — MCP over a single serverless function (`app/api/mcp/route.ts`), no long-lived process
+- **zod** — tool input validation
+- **D3** (force-directed graph, zoom/pan, drag)
+- **Vite** + `vite-plugin-singlefile` — the UI is bundled into one HTML file that the build inlines directly into the serverless function (no external origins → simple CSP)
+
+---
+
+## Running locally
+
+You need **Node.js 20+**.
+
+```bash
+npm install        # .npmrc sets legacy-peer-deps (see "Deploy to Vercel")
+npm run dev        # vite build → inline UI into the function → next dev
+```
+
+The MCP endpoint then runs at **`http://localhost:3000/api/mcp`** (Streamable HTTP, POST).
+
+Other scripts:
+
+```bash
+npm run build      # production build: vite + inline + next build
+npm run typecheck  # tsc --noEmit
+npm test           # unit tests for the ties parser (no network)
+```
+
+> Both `npm run dev` and `npm run build` first bundle the UI with Vite into `dist/ares-explorer.html`, then `scripts/inline-html.mjs` embeds it as a string into `app/api/mcp/ares-explorer-html.ts`. The serverless function therefore has no runtime filesystem dependency — the HTML is part of the bundle.
+
+### Trying it in Claude
+
+An MCP App needs a host that supports MCP Apps (Claude on web / desktop), which means a publicly reachable URL — so deploy to Vercel first (a preview deployment is enough) and add the function URL as a custom connector:
+
+1. Copy your deployment URL, e.g. `https://<project>.vercel.app`.
+2. In Claude → **Settings → Connectors → Add custom connector** → paste `https://<project>.vercel.app/api/mcp` (note the **`/api/mcp`** path, not just `/mcp`).
+3. Ask, for example: *„Ukaž graf vazeb firmy s IČO 24130222."* (Show the relationship graph for the company with IČO 24130222.) or *„Najdi v ARES firmu Alza a vykresli její vazby."* (Find the company Alza in ARES and draw its ties.)
+
+> Custom connectors require a paid Claude plan (Pro / Max / Team).
+
+Alternatively, you can debug the app locally with [`basic-host`](https://github.com/modelcontextprotocol/ext-apps/tree/main/examples/basic-host) from the ext-apps repo.
+
+### Example prompts
+
+- *„Vykresli vlastnickou strukturu firmy s IČO 27604977."* (Draw the ownership structure of the company with IČO 27604977.)
+- *„Najdi firmu Seznam.cz a ukaž její vazby."* (Find the company Seznam.cz and show its ties.)
+- *„Otevři graf pro IČO 24130222 a rozbal její mateřskou firmu."* (Open the graph for IČO 24130222 and expand its parent company.) *(in the app, just click the node)*
+
+---
+
+## Deploy to Vercel
+
+The project is an API-only **Next.js** app — the only route is the MCP endpoint `app/api/mcp/route.ts`, which serves Streamable HTTP via [`mcp-handler`](https://github.com/vercel/mcp-handler). No long-lived process, no state between requests.
+
+**Via the dashboard:** import the repo at [vercel.com/new](https://vercel.com/new). The framework (Next.js) and build are detected automatically from `vercel.json`; nothing needs to be configured by hand. After deploy, the endpoint lives at `https://<project>.vercel.app/api/mcp`.
+
+**Via the CLI:**
+
+```bash
+npm i -g vercel
+vercel          # preview deploy
+vercel --prod   # production deploy
+```
+
+What's wired up for deployment:
+
+- **`vercel.json`** — `framework: nextjs`, `buildCommand: npm run build` (runs vite build → inline HTML → next build), and `maxDuration: 60 s` for the `/api/mcp` function.
+- **`.npmrc`** with `legacy-peer-deps=true` — `mcp-handler@1.1.0` pins its `@modelcontextprotocol/sdk` peer to exactly `1.26.0`, whereas `ext-apps` requires `^1.29.0`. The APIs in use (`McpServer` + Streamable HTTP transport) are stable across those versions, so we stay on `1.29.x`. Vercel reads this file at install time too, so the same resolution applies in CI.
+- **Inlined HTML** — the app's UI is embedded straight into the function at build time (see above), so the serverless environment never needs to read `dist/` from disk.
+
+After deploying, add `https://<project>.vercel.app/api/mcp` as a custom connector in Claude (see "Trying it in Claude").
+
+---
+
+## Project structure
+
+```
+ares-explorer-mcp/
+├── app/
+│   └── api/mcp/
+│       ├── route.ts            # MCP endpoint: createMcpHandler — tools + UI resource
+│       └── ares-explorer-html.ts  # build-generated (gitignored): inlined UI HTML
+├── scripts/
+│   └── inline-html.mjs         # embeds dist/ares-explorer.html into the function as a string
+├── ares-explorer.html          # app entry HTML (inline styles)
+├── src/
+│   ├── types.ts                # shared data contract (GraphData …)
+│   ├── ares.ts                 # ARES REST client + tolerant ties parser
+│   └── mcp-app.ts              # UI: D3 force graph, node expansion
+├── test/
+│   └── graph.test.ts           # parser unit tests (fixtures, no network)
+├── vercel.json                 # Vercel: framework, build, maxDuration
+├── next.config.mjs
+├── vite.config.ts
+├── tsconfig.json
+└── package.json
+```
+
+---
+
+## Notes & limits
+
+- ARES data is **for information only** and has no character of an official document (see the [ARES terms](https://ares.gov.cz)). The API is rate-limited to **500 requests/min**.
+- The parser covers the most common forms (s.r.o., a.s., spolek). For exotic structures some ties may be missing — it deliberately omits rather than guesses. The logic is covered by unit tests.
+- Subjects with no VR record (e.g. some sole traders / OSVČ) show up as a standalone node with no ties.
+- Graph depth is capped (~80 ties per record) to stay readable; deeper levels are filled in by expanding nodes.
+
+## License
+
+MIT — see [`LICENSE`](./LICENSE).
+
+Data: © ARES / Ministry of Finance of the Czech Republic, provided as open data.

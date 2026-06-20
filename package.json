@@ -1,0 +1,49 @@
+{
+  "name": "ares-explorer-mcp",
+  "version": "0.1.0",
+  "description": "MCP App vizualizující personální a vlastnické vazby českých firem z veřejného rejstříku ARES jako interaktivní graf.",
+  "type": "module",
+  "license": "MIT",
+  "keywords": [
+    "mcp",
+    "mcp-app",
+    "model-context-protocol",
+    "ares",
+    "obchodni-rejstrik",
+    "open-data",
+    "d3",
+    "graph-visualization",
+    "czech"
+  ],
+  "scripts": {
+    "build:app": "INPUT=ares-explorer.html vite build",
+    "inline": "node scripts/inline-html.mjs",
+    "build": "npm run build:app && npm run inline && next build",
+    "dev": "npm run build:app && npm run inline && next dev",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx test/graph.test.ts"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/ext-apps": "^1.7.4",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "d3": "^7.9.0",
+    "mcp-handler": "^1.0.2",
+    "next": "^15.5.4",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/d3": "^7.4.3",
+    "@types/node": "^26.0.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16",
+    "vite-plugin-singlefile": "^2.3.3"
+  }
+}
